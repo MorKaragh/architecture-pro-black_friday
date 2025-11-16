@@ -99,11 +99,37 @@ async def root():
     replicaset_name = topology_description.replica_set_name
 
     shards = None
+    shard_document_counts = None
     if topology_type == "Sharded":
         shards_list = await client.admin.command("listShards")
         shards = {}
         for shard in shards_list.get("shards", {}):
             shards[shard["_id"]] = shard["host"]
+        
+        # Получаем количество документов в каждом шарде
+        shard_document_counts = {}
+        # Инициализируем счётчики для всех шардов
+        for shard_id in shards.keys():
+            shard_document_counts[shard_id] = 0
+        
+        for collection_name in collection_names:
+            try:
+                # Используем aggregation pipeline с $collStats для получения статистики по каждому шарду
+                collection = db.get_collection(collection_name)
+                pipeline = [
+                    {"$collStats": {"storageStats": {}}}
+                ]
+                stats_cursor = collection.aggregate(pipeline)
+                stats_list = await stats_cursor.to_list(length=100)
+                for stat in stats_list:
+                    shard_name = stat.get("shard", "unknown")
+                    count = stat.get("storageStats", {}).get("count", 0)
+                    if shard_name != "unknown":
+                        if shard_name not in shard_document_counts:
+                            shard_document_counts[shard_name] = 0
+                        shard_document_counts[shard_name] += count
+            except Exception as e:
+                logger.warning(f"Failed to get shard stats for collection {collection_name}: {e}")
 
     cache_enabled = False
     if REDIS_URL:
@@ -121,6 +147,7 @@ async def root():
         "mongo_is_mongos": client.is_mongos,
         "collections": collections,
         "shards": shards,
+        "shard_document_counts": shard_document_counts,
         "cache_enabled": cache_enabled,
         "status": "OK",
     }
