@@ -1,0 +1,278 @@
+services:
+  # Config Server Replica Set (3 узла)
+  mongodb-config1:
+    container_name: mongodb-config1
+    image: dh-mirror.gitverse.ru/mongo:latest
+    command: mongod --configsvr --replSet configReplSet --bind_ip_all --port 27019
+    volumes:
+      - mongodb_config1_data:/data/configdb
+    networks:
+      - mongo-sharding-network
+    restart: always
+    healthcheck:
+      test: mongosh --host localhost:27019 --eval "db.adminCommand('ping')" --quiet
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  mongodb-config2:
+    container_name: mongodb-config2
+    image: dh-mirror.gitverse.ru/mongo:latest
+    command: mongod --configsvr --replSet configReplSet --bind_ip_all --port 27019
+    volumes:
+      - mongodb_config2_data:/data/configdb
+    networks:
+      - mongo-sharding-network
+    restart: always
+    healthcheck:
+      test: mongosh --host localhost:27019 --eval "db.adminCommand('ping')" --quiet
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  mongodb-config3:
+    container_name: mongodb-config3
+    image: dh-mirror.gitverse.ru/mongo:latest
+    command: mongod --configsvr --replSet configReplSet --bind_ip_all --port 27019
+    volumes:
+      - mongodb_config3_data:/data/configdb
+    networks:
+      - mongo-sharding-network
+    restart: always
+    healthcheck:
+      test: mongosh --host localhost:27019 --eval "db.adminCommand('ping')" --quiet
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  # Shard 1 Replica Set (3 узла)
+  mongodb-shard1-node1:
+    container_name: mongodb-shard1-node1
+    image: dh-mirror.gitverse.ru/mongo:latest
+    command: mongod --shardsvr --replSet shard1ReplSet --bind_ip_all --port 27018
+    volumes:
+      - mongodb_shard1_node1_data:/data/db
+    networks:
+      - mongo-sharding-network
+    restart: always
+    healthcheck:
+      test: mongosh --host localhost:27018 --eval "db.adminCommand('ping')" --quiet
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  mongodb-shard1-node2:
+    container_name: mongodb-shard1-node2
+    image: dh-mirror.gitverse.ru/mongo:latest
+    command: mongod --shardsvr --replSet shard1ReplSet --bind_ip_all --port 27018
+    volumes:
+      - mongodb_shard1_node2_data:/data/db
+    networks:
+      - mongo-sharding-network
+    restart: always
+    healthcheck:
+      test: mongosh --host localhost:27018 --eval "db.adminCommand('ping')" --quiet
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  mongodb-shard1-node3:
+    container_name: mongodb-shard1-node3
+    image: dh-mirror.gitverse.ru/mongo:latest
+    command: mongod --shardsvr --replSet shard1ReplSet --bind_ip_all --port 27018
+    volumes:
+      - mongodb_shard1_node3_data:/data/db
+    networks:
+      - mongo-sharding-network
+    restart: always
+    healthcheck:
+      test: mongosh --host localhost:27018 --eval "db.adminCommand('ping')" --quiet
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  # Shard 2 Replica Set (3 узла)
+  mongodb-shard2-node1:
+    container_name: mongodb-shard2-node1
+    image: dh-mirror.gitverse.ru/mongo:latest
+    command: mongod --shardsvr --replSet shard2ReplSet --bind_ip_all --port 27018
+    volumes:
+      - mongodb_shard2_node1_data:/data/db
+    networks:
+      - mongo-sharding-network
+    restart: always
+    healthcheck:
+      test: mongosh --host localhost:27018 --eval "db.adminCommand('ping')" --quiet
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  mongodb-shard2-node2:
+    container_name: mongodb-shard2-node2
+    image: dh-mirror.gitverse.ru/mongo:latest
+    command: mongod --shardsvr --replSet shard2ReplSet --bind_ip_all --port 27018
+    volumes:
+      - mongodb_shard2_node2_data:/data/db
+    networks:
+      - mongo-sharding-network
+    restart: always
+    healthcheck:
+      test: mongosh --host localhost:27018 --eval "db.adminCommand('ping')" --quiet
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  mongodb-shard2-node3:
+    container_name: mongodb-shard2-node3
+    image: dh-mirror.gitverse.ru/mongo:latest
+    command: mongod --shardsvr --replSet shard2ReplSet --bind_ip_all --port 27018
+    volumes:
+      - mongodb_shard2_node3_data:/data/db
+    networks:
+      - mongo-sharding-network
+    restart: always
+    healthcheck:
+      test: mongosh --host localhost:27018 --eval "db.adminCommand('ping')" --quiet
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  # Mongos Router
+  mongos:
+    container_name: mongos
+    image: dh-mirror.gitverse.ru/mongo:latest
+    command: |
+      /bin/bash -c "
+      echo 'Waiting for config servers to form replica set...'
+      sleep 30
+      exec mongos --configdb configReplSet/mongodb-config1:27019,mongodb-config2:27019,mongodb-config3:27019 --bind_ip_all --port 27017
+      "
+    depends_on:
+      mongodb-config1:
+        condition: service_healthy
+      mongodb-config2:
+        condition: service_healthy
+      mongodb-config3:
+        condition: service_healthy
+      mongodb-shard1-node1:
+        condition: service_healthy
+      mongodb-shard1-node2:
+        condition: service_healthy
+      mongodb-shard1-node3:
+        condition: service_healthy
+      mongodb-shard2-node1:
+        condition: service_healthy
+      mongodb-shard2-node2:
+        condition: service_healthy
+      mongodb-shard2-node3:
+        condition: service_healthy
+    ports:
+      - "27017:27017"
+    networks:
+      - mongo-sharding-network
+    restart: always
+
+  # Инициализация репликации и шардирования
+  mongo-init:
+    container_name: mongo-init
+    image: dh-mirror.gitverse.ru/mongo:latest
+    depends_on:
+      mongodb-config1:
+        condition: service_healthy
+      mongodb-config2:
+        condition: service_healthy
+      mongodb-config3:
+        condition: service_healthy
+      mongodb-shard1-node1:
+        condition: service_healthy
+      mongodb-shard1-node2:
+        condition: service_healthy
+      mongodb-shard1-node3:
+        condition: service_healthy
+      mongodb-shard2-node1:
+        condition: service_healthy
+      mongodb-shard2-node2:
+        condition: service_healthy
+      mongodb-shard2-node3:
+        condition: service_healthy
+    volumes:
+      - ./scripts/mongo-sharding-init.sh:/scripts/mongo-sharding-init.sh
+    entrypoint: ["/bin/bash", "/scripts/mongo-sharding-init.sh"]
+    networks:
+      - mongo-sharding-network
+
+  # Инициализация данных
+  mongo-init-data:
+    container_name: mongo-init-data
+    image: dh-mirror.gitverse.ru/mongo:latest
+    depends_on:
+      - mongos
+      - mongo-init
+    volumes:
+      - ./scripts/mongo-init-data.sh:/scripts/mongo-init-data.sh
+    entrypoint: ["/bin/bash", "/scripts/mongo-init-data.sh"]
+    networks:
+      - mongo-sharding-network
+
+  # Redis для кеширования
+  redis:
+    container_name: redis
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - mongo-sharding-network
+    restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  pymongo_api:
+    container_name: pymongo_api
+    build: 
+      context: api_app
+      dockerfile: Dockerfile
+    depends_on:
+      mongos:
+        condition: service_started
+      mongo-init:
+        condition: service_completed_successfully
+      mongo-init-data:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    ports:
+      - 8080:8080
+    environment:
+      MONGODB_URL: "mongodb://mongos:27017"
+      MONGODB_DATABASE_NAME: "somedb"
+      REDIS_URL: "redis://redis:6379"
+    networks:
+      - mongo-sharding-network
+    restart: always
+
+volumes:
+  mongodb_config1_data:
+  mongodb_config2_data:
+  mongodb_config3_data:
+  mongodb_shard1_node1_data:
+  mongodb_shard1_node2_data:
+  mongodb_shard1_node3_data:
+  mongodb_shard2_node1_data:
+  mongodb_shard2_node2_data:
+  mongodb_shard2_node3_data:
+
+networks:
+  mongo-sharding-network:
+    driver: bridge
